@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "name": "Local GraphQL",
+            "type": "python",
+            "request": "launch",
+            "program": "app.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Generate",
+            "type": "python",
+            "request": "launch",
+            "program": "generate.py",
+            "console": "integratedTerminal"
+        }
+    ]
+}

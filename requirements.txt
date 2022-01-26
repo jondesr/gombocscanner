@@ -1,0 +1,13 @@
+starlette==0.16.0
+starlette-graphene3==0.5.1
+pydantic
+graphene==3.0b7
+graphene-pydantic==0.2.0
+promise==2.3
+python-dotenv==0.19.2
+mangum==0.11.0
+neo4j==4.3.6
+basicauth==0.4.1
+networkx==2.6.2
+boto3
+git+ssh://git@github.com/jondesr/gomboctypes.git

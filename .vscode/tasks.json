@@ -1,0 +1,76 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "01.1: Build",
+            "type": "shell",
+            "command": "DOCKER_BUILDKIT=1 docker build --ssh default . -t gombocscanner:latest",
+            "problemMatcher": []
+        },
+        {
+            "label": "01.2: Run",
+            "type": "shell",
+            "command": "docker run -p 6000:8080 --env-file .env gombocscanner:latest",
+            "problemMatcher": []
+        },
+        {
+            "label": "02: Invoke Locally",
+            "type": "shell",
+            "command": "curl -XPOST --data @event.json http://localhost:6000/2015-03-31/functions/function/invocations",
+            "problemMatcher": []
+        },
+        {
+            "label": "01: Build+Run",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "01.1: Build",
+                "01.2: Run",
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "03.1: Get ECR Credentials",
+            "type": "shell",
+            "command": "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 978185012068.dkr.ecr.us-east-1.amazonaws.com",
+            "problemMatcher": []
+        },
+        {
+            "label": "03.2: Tag for ECR",
+            "type": "shell",
+            "command": "docker tag gombocscanner:latest 978185012068.dkr.ecr.us-east-1.amazonaws.com/gombocscanner:latest",
+            "problemMatcher": []
+        },
+        {
+            "label": "03.3: Push to ECR",
+            "type": "shell",
+            "command": "docker push 978185012068.dkr.ecr.us-east-1.amazonaws.com/gombocscanner:latest",
+            "problemMatcher": []
+        },
+        {
+            "label": "03.4: Update Lambda",
+            "type": "shell",
+            "command": "aws lambda update-function-code --function-name gomboc_scanner --image-uri 978185012068.dkr.ecr.us-east-1.amazonaws.com/gombocscanner:latest",
+            "problemMatcher": []
+        },
+        {
+            "label": "03.5: Check Lambda Update Status",
+            "type": "shell",
+            "command": "watch -n 5 aws lambda get-function-configuration --function-name gomboc_scanner",
+            "problemMatcher": []
+        },
+        {
+            "label": "03: Push to ECR+Lambda",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "03.1: Get ECR Credentials",
+                "03.2: Tag for ECR",
+                "03.3: Push to ECR",
+                "03.4: Update Lambda",
+                "03.5: Check Lambda Update Status"
+            ],
+            "problemMatcher": []
+        },
+    ]
+}
