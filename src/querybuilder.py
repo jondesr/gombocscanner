@@ -256,17 +256,16 @@ class ResourceQueryGenerator(QueryGenerator):
                             graph.nodes[start_node_tuple]["label"] = NodeLabels.parse_from_iterable(relationship.start_node.labels)
                             graph.nodes[end_node_tuple]["label"] = NodeLabels.parse_from_iterable(relationship.end_node.labels)
 
-                    can_be_used_to_edges = [edge for edge in record["internal_resource_configuration"].graph.relationships if EdgeLabels.parse_string(edge.type) == EdgeLabels.CAN_BE_USED_TO]
+                # Delete Usecases and connect the nodes that uses and can_be_used_to directly
+                for usecase_id in [node_id for node_id in graph.nodes if graph.nodes[node_id]["label"] == NodeLabels.USE_CASE]:
+                    usecase_in_edges = [edge for edge in graph.in_edges(usecase_id)]
+                    can_be_used_to_node_id = [edge[0] for edge in usecase_in_edges if graph.edges[edge]["label"] == EdgeLabels.CAN_BE_USED_TO][0]
+                    usecase_node_id = usecase_in_edges[0][1]
 
-                    # Delete Usecases and connect the nodes that uses and can_be_used_to directly
-                    for uses_other_resource_to_edge in [edge for edge in graph.edges if graph.edges[edge]["label"] == EdgeLabels.USES_OTHER_RESOURCE_TO]:
-                        graph.remove_node(uses_other_resource_to_edge[1])
+                    for using_other_resource_to in [edge for edge in usecase_in_edges if graph.edges[edge]["label"] == EdgeLabels.USES_OTHER_RESOURCE_TO]:
+                        graph.add_edge(using_other_resource_to[0], can_be_used_to_node_id, label=EdgeLabels.USES_OTHER_RESOURCE_TO)
 
-                        for can_be_used_to_edge in [edge for edge in can_be_used_to_edges if edge.end_node._properties["id"] == uses_other_resource_to_edge[1][1]]:
-                            if (not graph.has_node((False, can_be_used_to_edge.start_node._properties["id"]))):
-                                raise Exception(f"Expected node {(False, can_be_used_to_edge.start_node._properties['id'])} in the graph")
-                                
-                            graph.add_edge(uses_other_resource_to_edge[0], (False, can_be_used_to_edge.start_node._properties["id"]), label=EdgeLabels.USES_OTHER_RESOURCE_TO)
+                    graph.remove_node(usecase_node_id)
 
                 capability_implementations.append((capability, graph))
 

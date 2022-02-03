@@ -7,6 +7,10 @@ from gomboctypes.models import Capability, EdgeLabels, NodeLabels
 import pickle
 import src.implementation_plan
 
+cloudformation_intrisic_functions = [
+    "AWS::Region"
+]
+
 with open("implementations.pkl", "rb") as file:
     implementations: Dict[str, List[Tuple[Capability, networkx.DiGraph]]] = pickle.load(file)
 
@@ -19,7 +23,7 @@ class CfnTemplate_Resource_Entry(BaseModel):
 class CfnTemplate(BaseModel):
     AWSTemplateFormatVersion: Optional[str]
     Description: Optional[str]
-    Parameters: Optional[Dict[str, Dict]]
+    Parameters: Dict[str, Dict] = {}
     Resources: Dict[str, CfnTemplate_Resource_Entry] = Field(...)
     Outputs: Optional[Dict[str, Dict]]
 
@@ -28,7 +32,7 @@ class CfnTemplate(BaseModel):
         does_not_implement: List[Tuple[Capability, src.implementation_plan.ImplementationPlan]] = []
         resource_type = self.Resources[resource_logical_name].Type
         current_resource_graph = networkx.DiGraph()
-        current_resource_graph.add_node(resource_type)
+        current_resource_graph.add_node((True, resource_type))
 
         if (resource_logical_name not in self.Resources):
             raise ValueError(f"Resource {resource_logical_name} doesn't exist in template")
@@ -36,8 +40,6 @@ class CfnTemplate(BaseModel):
         for property_name, property_value in self.Resources[resource_logical_name].Properties.items():
             self._recursively_add_property(current_resource_graph, resource_type, property_name, property_value)
         
-        current_resource_graph = networkx.relabel.relabel_nodes(current_resource_graph, {node_id:(True, node_id) for node_id in current_resource_graph.nodes})
-
         for capability, implementation_graph in implementations[resource_type]:
             edges_not_implemented = [edge for edge in implementation_graph.edges if not current_resource_graph.has_edge(edge[0], edge[1])]
             
@@ -53,10 +55,10 @@ class CfnTemplate(BaseModel):
 
     def _recursively_add_property(self, graph: networkx.DiGraph, ancestor_node_name: str, property_name: str, property_value: CfnTemplate_Resource_Properties_Type):
         if isinstance(property_value, str):
-            graph.add_edge(ancestor_node_name, f"{ancestor_node_name}-{property_name}")
+            graph.add_edge((True, ancestor_node_name), (True, f"{ancestor_node_name}-{property_name}"))
 
         elif isinstance(property_value, int):
-            graph.add_edge(ancestor_node_name, f"{ancestor_node_name}-{property_name}")
+            graph.add_edge((True, ancestor_node_name), (True, f"{ancestor_node_name}-{property_name}"))
 
         elif isinstance(property_value, list):
             for subproperty_value in property_value:
@@ -64,15 +66,18 @@ class CfnTemplate(BaseModel):
 
         elif isinstance(property_value, dict):
 
-            # If the entry is a CloudFormation reference i.e. {"Ref": "ResourceName"}
-            if (list(map(lambda x: x.lower(), property_value.keys())) == ["ref"]):
+            # If the entry is a CloudFormation reference i.e. {"Ref": "ResourceName"} to a logical resource (NOT parameter or intrisic function)
+            if (list(map(lambda x: x.lower(), property_value.keys())) == ["ref"] and list(property_value.values())[0] not in list(self.Parameters.keys()) + cloudformation_intrisic_functions):
                 referenced_resource = self.Resources[list(property_value.values())[0]]
                 
+                graph.add_edge((True, ancestor_node_name), (True, f"{ancestor_node_name}-{property_name}"))
+                graph.add_edge((True, f"{ancestor_node_name}-{property_name}"), (False, referenced_resource.Type))
+
                 for subproperty_name, subproperty_value in referenced_resource.Properties.items():
                     self._recursively_add_property(graph, f"{ancestor_node_name}-{property_name}", subproperty_name, subproperty_value)
 
             else:
-                graph.add_edge(ancestor_node_name, f"{ancestor_node_name}-{property_name}", label=EdgeLabels.HAS_SUBPROPERTY)
+                graph.add_edge((True, ancestor_node_name), (True, f"{ancestor_node_name}-{property_name}"), label=EdgeLabels.HAS_SUBPROPERTY)
                 for subproperty_name, subproperty_value in property_value.items():
                     self._recursively_add_property(graph, f"{ancestor_node_name}-{property_name}", subproperty_name, subproperty_value)
 
